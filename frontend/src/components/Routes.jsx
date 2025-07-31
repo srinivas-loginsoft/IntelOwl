@@ -26,12 +26,8 @@ const ChangePassword = React.lazy(() => import("./auth/ChangePassword"));
 const InvestigationResult = React.lazy(
   () => import("./investigations/result/InvestigationResult"),
 );
-const History = React.lazy(() => import("./history/History"));
-const ReportsSearch = React.lazy(() => import("./search/ReportsSearch"));
-const Analyzables = React.lazy(() => import("./analyzables/Analyzables"));
-const AnalyzableResult = React.lazy(
-  () => import("./analyzables/result/AnalyzableResult"),
-);
+const History = React.lazy(() => import("./History"));
+const Search = React.lazy(() => import("./search/Search"));
 
 function CustomRedirect() {
   /* this is a way to auto-redirect to the job page with the current date:
@@ -45,7 +41,7 @@ function CustomRedirect() {
   }, []);
 
   const startDatetime = structuredClone(endDatetime);
-  startDatetime.setDate(startDatetime.getDate() - 30);
+  startDatetime.setDate(startDatetime.getDate() - 1);
 
   return (
     <Navigate
@@ -214,30 +210,6 @@ const authRoutesLazy = [
       </Suspense>
     ),
   },
-  {
-    path: "/history/user-events",
-    element: (
-      <Suspense fallback={<FallBackLoading />}>
-        <History />
-      </Suspense>
-    ),
-  },
-  {
-    path: "/history/user-domain-wildcard-events",
-    element: (
-      <Suspense fallback={<FallBackLoading />}>
-        <History />
-      </Suspense>
-    ),
-  },
-  {
-    path: "/history/user-ip-wildcard-events",
-    element: (
-      <Suspense fallback={<FallBackLoading />}>
-        <History />
-      </Suspense>
-    ),
-  },
   /* Investigation */
   {
     path: `/investigation/:id`,
@@ -323,24 +295,7 @@ const authRoutesLazy = [
     path: "/search",
     element: (
       <Suspense fallback={<FallBackLoading />}>
-        <ReportsSearch />
-      </Suspense>
-    ),
-  },
-  /* Analyzables */
-  {
-    path: "/artifacts",
-    element: (
-      <Suspense fallback={<FallBackLoading />}>
-        <Analyzables />
-      </Suspense>
-    ),
-  },
-  {
-    path: `/artifacts/:id`,
-    element: (
-      <Suspense fallback={<FallBackLoading />}>
-        <AnalyzableResult />
+        <Search />
       </Suspense>
     ),
   },

@@ -26,7 +26,7 @@ class TestUserAnalyzableEventQuerySet(CustomTestCase):
         )
         ue = UserAnalyzableEventSerializer(
             data={
-                "analyzable": {"name": an.name},
+                "analyzable": an.pk,
                 "decay_progression": 0,
                 "decay_timedelta_days": 0,
                 "data_model_content": {"evaluation": "malicious", "reliability": 8},
@@ -49,7 +49,7 @@ class TestUserDomainWildCardEventQuerySet(CustomTestCase):
 
     def test_matches(self):
         an = Analyzable.objects.create(
-            name="a.test.com",
+            name="test.com",
             classification=Analyzable.CLASSIFICATIONS.DOMAIN,
         )
         res = UserDomainWildCardEvent.objects.matches(an)

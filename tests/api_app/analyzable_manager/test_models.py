@@ -34,7 +34,7 @@ class TestAnalyzable(CustomTestCase):
 
         u2 = UserAnalyzableEventSerializer(
             data={
-                "analyzable": {"name": an.name},
+                "analyzable": an.pk,
                 "decay_progression": 0,
                 "decay_timedelta_days": 3,
                 "data_model_content": {"evaluation": "malicious", "reliability": 8},

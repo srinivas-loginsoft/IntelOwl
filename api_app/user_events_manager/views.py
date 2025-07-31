@@ -1,19 +1,14 @@
 import ipaddress
-import re
 from http import HTTPStatus
 
 from django.db import IntegrityError
-from django.db.models import GenericIPAddressField
-from django.db.models.functions import Cast
 from requests import Request
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.mixins import (
     CreateModelMixin,
     DestroyModelMixin,
     ListModelMixin,
     RetrieveModelMixin,
-    UpdateModelMixin,
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -21,12 +16,8 @@ from rest_framework.viewsets import GenericViewSet
 
 from api_app.analyzables_manager.models import Analyzable
 from api_app.choices import Classification
-from api_app.user_events_manager.filters import (
-    UserAnalyzableEventFilterSet,
-    UserDomainWildCardEventFilterSet,
-    UserEventFilterSet,
-    UserIPWildCardEventFilterSet,
-)
+from api_app.mixins import PaginationMixin
+from api_app.user_events_manager.filters import UserEventFilterSet
 from api_app.user_events_manager.models import (
     UserAnalyzableEvent,
     UserDomainWildCardEvent,
@@ -44,11 +35,11 @@ from certego_saas.apps.organization.permissions import (
 
 
 class UserEventViewSet(
+    PaginationMixin,
     CreateModelMixin,
     RetrieveModelMixin,
     DestroyModelMixin,
     ListModelMixin,
-    UpdateModelMixin,
     GenericViewSet,
 ):
     permission_classes = [IsAuthenticated, IsObjectOwnerOrSameOrgPermission]
@@ -56,7 +47,7 @@ class UserEventViewSet(
 
     def get_permissions(self):
         permissions = super().get_permissions()
-        if self.action in ["destroy", "update", "partial_update"]:
+        if self.action in ["destroy"]:
             permissions.append(IsObjectOwnerPermission())
         return permissions
 
@@ -73,53 +64,46 @@ class UserEventViewSet(
 class UserAnalyzableEventViewSet(UserEventViewSet):
     queryset = UserAnalyzableEvent.objects.all()
     serializer_class = UserAnalyzableEventSerializer
-    filterset_class = UserAnalyzableEventFilterSet
 
 
 class UserDomainWildCardEventViewSet(UserEventViewSet):
     queryset = UserDomainWildCardEvent.objects.all()
     serializer_class = UserDomainWildCardEventSerializer
-    filterset_class = UserDomainWildCardEventFilterSet
 
     @action(detail=False, methods=["put"])
     def validate(self, request):
-        if "query" not in request.data:
-            raise ValidationError({"detail": "query is required"})
-        query = request.data["query"]
-
-        try:
-            re.compile(query)
-        except re.error:
-            raise ValidationError({"detail": "Invalid query"})
+        query = request.PATCH.get("query")
 
         return Response(
             status=HTTPStatus.OK.value,
-            data=Analyzable.objects.filter(
-                name__iregex=query,
-                classification__in=[
-                    Classification.URL.value,
-                    Classification.DOMAIN.value,
-                ],
-            ).values_list("name", flat=True),
+            data=[
+                Analyzable.objects.filter(
+                    name__iregex=query,
+                    classification__in=[
+                        Classification.URL.value,
+                        Classification.DOMAIN.value,
+                    ],
+                ).values_list("name", flat=True)
+            ],
         )
 
 
 class UserIPWildCardEventViewSet(UserEventViewSet):
     queryset = UserIPWildCardEvent.objects.all()
     serializer_class = UserIPWildCardEventSerializer
-    filterset_class = UserIPWildCardEventFilterSet
 
     @action(detail=False, methods=["put"])
     def validate(self, request):
-        if "network" not in request.data:
-            raise ValidationError({"detail": "network is required"})
-        network = request.data["network"]
+        network = request.PATCH.get("network")
         network = ipaddress.IPv4Network(network)
 
         return Response(
             status=HTTPStatus.OK.value,
-            data=Analyzable.objects.filter(classification=Classification.IP.value)
-            .annotate(ip=Cast("name", GenericIPAddressField()))
-            .filter(ip__gte=str(network[0]), ip__lte=str(network[-1]))
-            .values_list("name", flat=True),
+            data=[
+                Analyzable.objects.filter(
+                    name__gte=network[0],
+                    name__lte=network[-1],
+                    classification=Classification.IP.value,
+                ).values_list("name", flat=True)
+            ],
         )

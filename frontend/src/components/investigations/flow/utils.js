@@ -1,6 +1,6 @@
 import { getLayoutedElements } from "../../common/flows/getLayoutedElements";
 import { JobFinalStatuses } from "../../../constants/jobConst";
-import { TagsIcons } from "../../../constants/dataModelConst";
+import { TagsIcons } from "../../../constants/engineConst";
 
 /* eslint-disable id-length */
 function addJobNode(

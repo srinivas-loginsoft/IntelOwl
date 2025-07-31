@@ -25,7 +25,7 @@ class TestUserAnalyzableEventSerializer(CustomTestCase):
 
         u = UserAnalyzableEventSerializer(
             data={
-                "analyzable": {"name": an.name},
+                "analyzable": an.pk,
                 "decay_progression": 0,
                 "decay_timedelta_days": 3,
                 "data_model_content": {"evaluation": "malicious", "reliability": 8},
@@ -45,7 +45,7 @@ class TestUserAnalyzableEventSerializer(CustomTestCase):
         data = UserAnalyzableEventSerializer(res).data
         self.assertEqual(data["data_model"]["evaluation"], "malicious")
         self.assertEqual(data["data_model"]["reliability"], 8)
-        self.assertEqual(data["analyzable"]["name"], an.name)
+        self.assertEqual(data["analyzable"], an.pk)
         an.delete()
         res.delete()
 
