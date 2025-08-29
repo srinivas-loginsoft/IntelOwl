@@ -90,6 +90,13 @@ class YaraX(FileAnalyzer):
         return False
 
     def run(self):
+
+        if self.rule_set not in ("core", "extended", "full"):
+            raise AnalyzerRunException(
+                "Please select the correct ruleset pack from available options."
+                " Available options are core, extended, full"
+            )
+
         rule_dir = f"{BASE_RULES_LOCATION}/{self.rule_set}"
         if not os.path.isdir(rule_dir) and not self.update(rule_set=self.rule_set):
             logger.info(f"Failed to update {self.rule_set} rule set")
@@ -115,10 +122,12 @@ class YaraX(FileAnalyzer):
             scan_results = scanner.scan_file(self.filepath)
             for rule in scan_results.matching_rules:
                 logger.info(f"Rule Identifier: {rule.identifier}")
-                logger.info(f"Rule Metadata: {rule.metadata}")
+                rule_metadata = {}
+                for detail in rule.metadata:
+                    rule_metadata[detail[0]] = detail[1]
                 rule_details = {
                     "rule_identifier": rule.identifier,
-                    "rule_metadata": rule.metadata,
+                    "rule_metadata": rule_metadata,
                     "pattern_details": [],
                 }
                 for pattern in rule.patterns:
@@ -139,8 +148,7 @@ class YaraX(FileAnalyzer):
 
                 result.append(rule_details)
 
-            logger.info(f"Successfully scanned {self.filename}")
-            logger.info(result)
+            logger.info(f"Successfully scanned {self.filename} with hash {self.md5}")
 
             return "No Match" if not result else result
 
