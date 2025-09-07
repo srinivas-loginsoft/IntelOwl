@@ -350,3 +350,13 @@ class AnalyzerConfig(PythonConfig):
     @property
     def config_exception(cls):
         return AnalyzerConfigurationException
+
+
+class AnalyzerRulesFileVersion(models.Model):
+    last_downloaded_version = models.CharField(max_length=50, blank=True, default="")
+    download_url = models.URLField(max_length=200, blank=True, default="")
+    downloaded_at = models.DateTimeField(auto_now_add=True)
+
+    python_module = models.ForeignKey(
+        PythonModule, on_delete=models.PROTECT, related_name="rules_version"
+    )

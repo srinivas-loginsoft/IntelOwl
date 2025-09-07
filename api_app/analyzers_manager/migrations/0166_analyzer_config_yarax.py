@@ -17,7 +17,7 @@ plugin = {
     "name": "YaraX",
     "description": "[YaraX](https://virustotal.github.io/yara-x/docs/intro/getting-started/) is a re-incarnation of YARA, a pattern matching tool designed with malware researchers in mind. This new incarnation intends to be faster, safer and more user-friendly than its predecessor.",
     "disabled": False,
-    "soft_time_limit": 60,
+    "soft_time_limit": 480,
     "routing_key": "default",
     "health_check_status": True,
     "type": "file",
@@ -46,7 +46,30 @@ params = [
     }
 ]
 
-values = []
+values = [
+    {
+        "parameter": {
+            "python_module": {
+                "module": "yarax.YaraX",
+                "base_path": "api_app.analyzers_manager.file_analyzers",
+            },
+            "name": "rule_set",
+            "type": "str",
+            "description": "Yara-Forge Ruleset pack to use. Available options are core, extended, full. By default, core ruleset pack is selected for analysis. Refer the docs for more information.",
+            "is_secret": False,
+            "required": False,
+        },
+        "analyzer_config": "YaraX",
+        "connector_config": None,
+        "visualizer_config": None,
+        "ingestor_config": None,
+        "pivot_config": None,
+        "for_organization": False,
+        "value": "core",
+        "updated_at": "2025-09-07T11:44:16.043896Z",
+        "owner": None,
+    }
+]
 
 
 def _get_real_obj(Model, field, value):
@@ -131,7 +154,7 @@ class Migration(migrations.Migration):
     atomic = False
     dependencies = [
         ("api_app", "0071_delete_last_elastic_report"),
-        ("analyzers_manager", "0163_analyzer_config_guarddoggeneric"),
+        ("analyzers_manager", "0165_analyzer_config_joesandboxurl"),
     ]
 
     operations = [migrations.RunPython(migrate, reverse_migrate)]
