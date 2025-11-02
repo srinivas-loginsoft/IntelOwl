@@ -1,16 +1,14 @@
 import logging
 import os
 import pathlib
-from zipfile import ZipFile
 
 import requests
 import yara_x
 from django.conf import settings
-from django.utils import timezone
 
 from api_app.analyzers_manager.classes import FileAnalyzer
 from api_app.analyzers_manager.exceptions import AnalyzerRunException
-from api_app.analyzers_manager.models import AnalyzerRulesFileVersion, PythonModule
+from api_app.mixins import RulesUtiliyMixin
 
 logger = logging.getLogger(__name__)
 
@@ -19,19 +17,8 @@ RULES_URL = "https://api.github.com/repos/YARAHQ/yara-forge/releases/latest"
 BASE_RULES_LOCATION = f"{settings.MEDIA_ROOT}/yarax"
 
 
-class YaraX(FileAnalyzer):
+class YaraX(FileAnalyzer, RulesUtiliyMixin):
     rule_set: str = "core"
-
-    def _check_if_latest_version(self, latest_version: str) -> bool:
-
-        analyzer_rules_file_version = AnalyzerRulesFileVersion.objects.filter(
-            python_module=self.python_module
-        ).first()
-
-        if analyzer_rules_file_version is None:
-            return False
-
-        return latest_version == analyzer_rules_file_version.last_downloaded_version
 
     def get_rule_location(self):
         logger.info(f"Searching for rules at {BASE_RULES_LOCATION}/{self.rule_set}")
@@ -45,65 +32,7 @@ class YaraX(FileAnalyzer):
             raise AnalyzerRunException(f"{self.rule_set} rules not present")
 
     @classmethod
-    def _update_rules_file_version(cls, latest_version: str, rules_file_url: str):
-        yarax_module = PythonModule.objects.get(
-            module="yarax.YaraX",
-            base_path="api_app.analyzers_manager.file_analyzers",
-        )
-
-        _, created = AnalyzerRulesFileVersion.objects.update_or_create(
-            python_module=yarax_module,
-            defaults={
-                "last_downloaded_version": latest_version,
-                "download_url": rules_file_url,
-                "downloaded_at": timezone.now(),
-            },
-        )
-
-        if created:
-            logger.info(f"Created new entry for {yarax_module} rules file version")
-        else:
-            logger.info(f"Updated existing entry for {yarax_module} rules file version")
-
-    @classmethod
-    def _unzip(cls, rule_set_type: str, filename: str):
-
-        rule_file_path = pathlib.Path(BASE_RULES_LOCATION) / rule_set_type / filename
-        logger.info(f"Extracting rules at {rule_file_path.parent}")
-        with ZipFile(rule_file_path, mode="r") as archive:
-            archive.extractall(
-                rule_file_path.parent
-            )  # this will overwrite any existing directory
-        logger.info("Rules have been succesfully extracted")
-
-    @classmethod
-    def _download_rules(
-        cls,
-        rule_set_download_url: str,
-        filename: str,
-        rule_set_type: str,
-        latest_version: str,
-    ):
-        rule_set_directory = f"{BASE_RULES_LOCATION}/{rule_set_type}"
-        rule_file_path = f"{rule_set_directory}/{filename}"
-
-        if not os.path.exists(rule_set_directory):
-            os.makedirs(rule_set_directory)
-
-        logger.info(f"Started downloading rules from {rule_set_download_url}")
-        response = requests.get(rule_set_download_url, stream=True)
-        with open(rule_file_path, mode="wb+") as file:
-            for chunk in response.iter_content(chunk_size=10 * 1024):
-                file.write(chunk)
-
-        cls._update_rules_file_version(
-            latest_version=latest_version, rules_file_url=rule_set_download_url
-        )
-
-        logger.info(f"Rules have been successfully downloaded at {rule_file_path}")
-
-    @classmethod
-    def update(cls, rule_set) -> bool:
+    def update(cls, rule_set, analyzer_module) -> bool:
         logger.info(f"Updating {rule_set} rule set")
         rule_set_download_url = ""
         filename = ""
@@ -117,13 +46,20 @@ class YaraX(FileAnalyzer):
                     filename = asset["name"]
                     break
 
+            rule_set_directory = f"{BASE_RULES_LOCATION}/{rule_set}"
+            rule_file_path = f"{rule_set_directory}/{filename}"
+
             cls._download_rules(
-                rule_set_download_url=rule_set_download_url,
-                filename=filename,
-                rule_set_type=rule_set,
-                latest_version=latest_version,
+                rule_set_download_url,
+                rule_set_directory,
+                rule_file_path,
+                latest_version,
+                analyzer_module,
             )
-            cls._unzip(rule_set_type=rule_set, filename=filename)
+
+            rule_file_path = pathlib.Path(BASE_RULES_LOCATION) / rule_set / filename
+
+            cls._unzip(rule_file_path)
 
             logger.info(f"Successfully updated {rule_set} rules")
             return True
@@ -152,8 +88,8 @@ class YaraX(FileAnalyzer):
 
         update_status = (
             True
-            if self._check_if_latest_version(latest_version)
-            else self.update(self.rule_set)
+            if self._check_if_latest_version(latest_version, self.python_module)
+            else self.update(self.rule_set, self.python_module)
         )
 
         if not os.path.isdir(rule_dir) and not update_status:
