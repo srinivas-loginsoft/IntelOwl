@@ -1,17 +1,23 @@
 import abc
 import base64
 import logging
+import os
+import pathlib
+import shutil
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
+from zipfile import ZipFile
 
 import requests
 from django.core.cache import cache
+from django.utils import timezone
 from jbxapi import ApiError, JoeSandbox
 from rest_framework.response import Response
 
 from api_app.analyzers_manager.classes import BaseAnalyzerMixin
 from api_app.analyzers_manager.exceptions import AnalyzerRunException
+from api_app.analyzers_manager.models import AnalyzerRulesFileVersion, PythonModule
 from api_app.choices import Classification
 from certego_saas.ext.pagination import CustomPageNumberPagination
 
@@ -831,3 +837,90 @@ class JoeSandboxMixin:
             return analysis_result
 
         return None
+
+
+class RulesUtiliyMixin:
+
+    @staticmethod
+    def _check_if_latest_version(
+        latest_version: str, python_module: PythonModule
+    ) -> bool:
+
+        analyzer_rules_file_version = AnalyzerRulesFileVersion.objects.filter(
+            python_module=python_module
+        ).first()
+
+        if analyzer_rules_file_version is None:
+            return False
+
+        return latest_version == analyzer_rules_file_version.last_downloaded_version
+
+    @staticmethod
+    def _update_rules_file_version(
+        latest_version: str, rules_file_url: str, python_module: PythonModule
+    ):
+
+        _, created = AnalyzerRulesFileVersion.objects.update_or_create(
+            python_module=python_module,
+            defaults={
+                "last_downloaded_version": latest_version,
+                "download_url": rules_file_url,
+                "downloaded_at": timezone.now(),
+            },
+        )
+
+        if created:
+            logger.info(f"Created new entry for {python_module} rules file version")
+        else:
+            logger.info(
+                f"Updated existing entry for {python_module} rules file version"
+            )
+
+    @staticmethod
+    def _unzip(rule_file_path: pathlib.Path):
+        logger.info(f"Extracting rules at {rule_file_path.parent}")
+        with ZipFile(rule_file_path, mode="r") as archive:
+            archive.extractall(
+                rule_file_path.parent
+            )  # this will overwrite any existing directory
+        logger.info("Rules have been succesfully extracted")
+
+    @staticmethod
+    def _download_rules(
+        rule_set_download_url,
+        rule_set_directory,
+        rule_file_path,
+        latest_version,
+        analyzer_module: PythonModule,
+    ):
+
+        if os.path.exists(rule_set_directory):
+            logger.info(f"Removing existing rules at {rule_set_directory}")
+            shutil.rmtree(rule_set_directory)
+
+        os.makedirs(rule_set_directory)
+        logger.info(f"Created fresh rules directory at {rule_set_directory}")
+
+        response = requests.get(rule_set_download_url, stream=True)
+        logger.info(
+            f"Started downloading rules with version: {latest_version} from {rule_set_download_url}"
+        )
+
+        try:
+            with open(rule_file_path, mode="wb+") as file:
+                for chunk in response.iter_content(chunk_size=10 * 1024):
+                    file.write(chunk)
+
+            RulesUtiliyMixin._update_rules_file_version(
+                latest_version=latest_version,
+                rules_file_url=rule_set_download_url,
+                python_module=analyzer_module,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to download rules with error: {e}")
+            raise AnalyzerRunException("Failed to download rules")
+
+        logger.info(
+            f"Rules with version: {latest_version} have been successfully downloaded at {rule_set_directory}"
+        )
