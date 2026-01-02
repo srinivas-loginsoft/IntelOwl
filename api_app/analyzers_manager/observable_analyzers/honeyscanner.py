@@ -35,7 +35,7 @@ class HoneyScanner(ObservableAnalyzer):
         else:
             ip_address = self.observable_name
 
-        logger.info(f"Running HoneyScanner for ip_address {ip_address}")
+        logger.info(f"Running HoneyScanner for {ip_address=}")
 
         result = honeyscanner.main.run_honeyscanner(
             ip_address,
