@@ -12,8 +12,9 @@ import {
 } from "@certego/certego-ui";
 
 import TableCell from "../common/TableCell";
+import TagsCell from "../common/TagsCell";
 import { ObservableClassifications } from "../../constants/jobConst";
-import { TagsBadge, LastEvaluationComponent } from "../common/engineBadges";
+import { LastEvaluationComponent } from "../common/engineBadges";
 
 export const analyzablesTableColumns = [
   {
@@ -156,20 +157,7 @@ export const analyzablesTableColumns = [
     Header: "Tags",
     id: "tags",
     accessor: (analyzable) => analyzable?.last_data_model?.tags,
-    Cell: ({ value: tags, row }) =>
-      tags ? (
-        <div className="d-flex justify-content-center py-2">
-          {tags.map((tag, index) => (
-            <TagsBadge
-              id={`tag-row${row.id}_${index}`}
-              tag={tag}
-              className="ms-1"
-            />
-          ))}
-        </div>
-      ) : (
-        <div />
-      ),
+    Cell: ({ value: tags, row }) => <TagsCell values={tags} rowId={row.id} />,
     disableSortBy: true,
     maxWidth: 100,
     Filter: DefaultColumnFilter,

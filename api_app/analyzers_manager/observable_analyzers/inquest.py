@@ -37,7 +37,7 @@ class InQuest(ObservableAnalyzer):
         hash_type = hash_lengths.get(len(self.observable_name))
         if not hash_type:
             raise AnalyzerRunException(
-                f"Given Hash: '{hash}' is not supported."
+                f"Given Hash: '{self.observable_name}' is not supported. "
                 "Supported hash types are: 'md5', 'sha1', 'sha256', 'sha512'."
             )
         return hash_type

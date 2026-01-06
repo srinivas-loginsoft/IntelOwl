@@ -3,9 +3,10 @@ import React from "react";
 
 import { DefaultColumnFilter, DateHoverable } from "@certego/certego-ui";
 
-import { LastEvaluationComponent, TagsBadge } from "../common/engineBadges";
+import { LastEvaluationComponent } from "../common/engineBadges";
 import { UserEventDecay } from "./UserEventDecay";
 import TableCell from "../common/TableCell";
+import TagsCell from "../common/TagsCell";
 
 export const userEventsTableStartColumns = [
   {
@@ -89,27 +90,14 @@ export const userEventsTableEndColumns = [
     Header: "Tags",
     id: "tags",
     accessor: (userEvent) => userEvent.data_model.tags,
-    Cell: ({ value: tags, row }) =>
-      tags ? (
-        <div className="d-flex justify-content-center py-2">
-          {tags.map((tag, index) => (
-            <TagsBadge
-              id={`tag-row${row.id}_${index}`}
-              tag={tag}
-              className="ms-1"
-            />
-          ))}
-        </div>
-      ) : (
-        <div />
-      ),
+    Cell: ({ value: tags, row }) => <TagsCell values={tags} rowId={row.id} />,
     disableSortBy: true,
     maxWidth: 100,
   },
   {
     Header: "Reasons",
     id: "related_threats",
-    accessor: (userEvent) => userEvent.data_model.related_threats,
+    accessor: (userEvent) => userEvent.reason,
     Cell: ({ value: comments, row }) =>
       comments.length > 0 && (
         <TableCell

@@ -1,16 +1,18 @@
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const { createProxyMiddleware } = require("http-proxy-middleware");
 
-module.exports = function(app) {
-       app.use(
-        createProxyMiddleware('/ws', {
-            target: 'ws://localhost/',
-            ws: true,
-        })
-    );
-   app.use(
-        createProxyMiddleware('/',{
-            target: 'http://localhost',
-        })
-    );
+const TARGET_SERVER = "http://localhost";
 
+module.exports = function proxy(app) {
+  app.use(
+    createProxyMiddleware("/ws/jobs", {
+      target: TARGET_SERVER,
+      // eslint-disable-next-line id-length
+      ws: true,
+    }),
+  );
+  app.use(
+    createProxyMiddleware("/api", {
+      target: TARGET_SERVER,
+    }),
+  );
 };

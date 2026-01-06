@@ -10,10 +10,12 @@ import {
 import { format } from "date-fns-tz";
 
 import TableCell from "../../common/TableCell";
-import { TagsBadge, LastEvaluationComponent } from "../../common/engineBadges";
+import TagsCell from "../../common/TagsCell";
+import { LastEvaluationComponent } from "../../common/engineBadges";
 import {
   JobResultSections,
   AnalyzableHistoryTypes,
+  HistoryPages,
   datetimeFormatStr,
 } from "../../../constants/miscConst";
 
@@ -33,10 +35,14 @@ export const analyzablesHistoryTableColumns = [
               href={
                 original.type === AnalyzableHistoryTypes.JOB
                   ? `/jobs/${id}/${JobResultSections.VISUALIZER}`
-                  : `/history/${original.type.replaceAll(
-                      "_",
-                      "-",
-                    )}s?event_date__gte=${encodeURIComponent(
+                  : `/history/${
+                      HistoryPages[
+                        Object.keys(AnalyzableHistoryTypes).find(
+                          (key) =>
+                            AnalyzableHistoryTypes[key] === original.type,
+                        )
+                      ]
+                    }?event_date__gte=${encodeURIComponent(
                       format(fromDate, datetimeFormatStr),
                     )}&event_date__lte=${encodeURIComponent(
                       format(new Date(), datetimeFormatStr),
@@ -130,20 +136,7 @@ export const analyzablesHistoryTableColumns = [
     Header: "Tags",
     id: "tags",
     accessor: "data_model.tags",
-    Cell: ({ value, row }) =>
-      value ? (
-        <div className="d-flex justify-content-center py-2">
-          {value.map((tag, index) => (
-            <TagsBadge
-              id={`row${row.id}_${index}`}
-              tag={tag}
-              className="ms-1"
-            />
-          ))}
-        </div>
-      ) : (
-        <div />
-      ),
+    Cell: ({ value, row }) => <TagsCell values={value} rowId={row.id} />,
     disableSortBy: true,
     maxWidth: 100,
     Filter: DefaultColumnFilter,
@@ -159,7 +152,7 @@ export const analyzablesHistoryTableColumns = [
       } else if (value.type === AnalyzableHistoryTypes.JOB) {
         text = "Custom Analysis";
       } else {
-        text = value.data_model.related_threats.toString();
+        text = value.reason;
       }
       return text;
     },
