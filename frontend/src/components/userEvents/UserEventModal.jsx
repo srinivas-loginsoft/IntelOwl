@@ -18,12 +18,13 @@ import {
   NavLink,
   TabContent,
   TabPane,
+  Spinner,
 } from "reactstrap";
 import PropTypes from "prop-types";
 import { useFormik, FormikProvider, FieldArray } from "formik";
 import axios from "axios";
 import { BsFillTrashFill, BsFillPlusCircleFill } from "react-icons/bs";
-import { MdInfoOutline } from "react-icons/md";
+import { MdInfoOutline, MdOutlineInput } from "react-icons/md";
 import { IoMdWarning } from "react-icons/io";
 
 import {
@@ -32,6 +33,7 @@ import {
   addToast,
   selectStyles,
   useDebounceInput,
+  DateHoverable,
 } from "@certego/certego-ui";
 
 import ReactSelect from "react-select";
@@ -104,6 +106,21 @@ const evaluationOptions = [
   },
 ];
 
+const killChainPhaseOptionLabel = (killChainPhase) => (
+  <div
+    id={`killChainPhase__${killChainPhase}`}
+    className="d-flex justify-content-start align-items-start flex-column"
+  >
+    <div className="d-flex justify-content-start align-items-baseline flex-column">
+      <div>{killChainPhase}&nbsp;</div>
+      <div className="small text-left text-muted">
+        {DataModelKillChainPhasesDescriptions[killChainPhase.toUpperCase()] ||
+          ""}
+      </div>
+    </div>
+  </div>
+);
+
 export function UserEventModal({ analyzables, toggle, isOpen }) {
   console.debug("UserEventModal rendered!");
 
@@ -115,6 +132,8 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
   const [inputState, setInputState] = React.useState({});
   const [wildcardInputError, setWildcardInputError] = React.useState(null);
   const [advancedEvaluationTab, setAdvancedEvaluationTab] =
+    React.useState(false);
+  const [isLoadingExistingEventData, setIsLoadingExistingEventData] =
     React.useState(false);
 
   const formik = useFormik({
@@ -256,6 +275,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
     const obj = {};
     analyzables.forEach((analyzable) => {
       if (analyzable.name !== "" && analyzable.name !== undefined) {
+        setIsLoadingExistingEventData(true);
         axios
           .get(
             `${USER_EVENT_ANALYZABLE}?username=${user.username}&analyzable_name=${analyzable.name}`,
@@ -264,8 +284,11 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
             obj[analyzable.name] = {
               type: UserEventTypes.ANALYZABLE,
               eventId: resp.data.count !== 0 ? resp.data.results[0].id : null,
+              existingEvent:
+                resp.data.count !== 0 ? resp.data.results[0] : null,
             };
             setInputState({ ...inputState, ...obj });
+            setIsLoadingExistingEventData(false);
           });
       }
     });
@@ -288,6 +311,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
           .then((response) => {
             setWildcardInputError({ [wildcard]: null });
             // check if an ip wildcard event already exists for the same user
+            setIsLoadingExistingEventData(true);
             axios
               .get(
                 `${USER_EVENT_IP_WILDCARD}?username=${user.username}&network=${wildcard}`,
@@ -298,10 +322,13 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                   [wildcard]: {
                     type: UserEventTypes.IP_WILDCARD,
                     matches: response.data,
+                    existingEvent:
+                      resp.data.count !== 0 ? resp.data.results[0] : null,
                     eventId:
                       resp.data.count !== 0 ? resp.data.results[0].id : null,
                   },
                 });
+                setIsLoadingExistingEventData(false);
               });
           })
           .catch((error) => {
@@ -323,6 +350,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
           .then((response) => {
             setWildcardInputError({ [wildcard]: null });
             // check if a domain wildcard event already exists for the same user
+            setIsLoadingExistingEventData(true);
             axios
               .get(
                 `${USER_EVENT_DOMAIN_WILDCARD}?username=${user.username}&query=${wildcard}`,
@@ -333,10 +361,13 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                   [wildcard]: {
                     type: UserEventTypes.DOMAIN_WILDCARD,
                     matches: response.data,
+                    existingEvent:
+                      resp.data.count !== 0 ? resp.data.results[0] : null,
                     eventId:
                       resp.data.count !== 0 ? resp.data.results[0].id : null,
                   },
                 });
+                setIsLoadingExistingEventData(false);
               });
           })
           .catch((error) => {
@@ -348,6 +379,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
         // input is not a wildcard
         setWildcardInputError({ [wildcard]: null });
         // check if an analyzable event already exists for the same user
+        setIsLoadingExistingEventData(true);
         axios
           .get(
             `${USER_EVENT_ANALYZABLE}?username=${user.username}&analyzable_name=${wildcard}`,
@@ -357,6 +389,8 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
               ...inputState,
               [wildcard]: {
                 type: UserEventTypes.ANALYZABLE,
+                existingEvent:
+                  resp.data.count !== 0 ? resp.data.results[0] : null,
                 eventId: resp.data.count !== 0 ? resp.data.results[0].id : null,
               },
             });
@@ -368,6 +402,92 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
 
   console.debug("userEventModal - formik values", formik.values);
   console.debug("userEventModal - inputState", inputState);
+
+  React.useEffect(() => {
+    // autofill form (only with one artifact)
+    if (
+      formik.values?.analyzables?.length === 1 &&
+      formik.values?.analyzables[0] !== "" &&
+      inputState[formik.values?.analyzables[0]]?.existingEvent
+    ) {
+      const oldData = inputState[formik.values?.analyzables[0]].existingEvent;
+      // basic evaluation check
+      let oldBasicEvaluation = null;
+      const oldEvaluation = oldData.data_model.evaluation;
+      const oldReliability = oldData.data_model.reliability;
+      if (
+        oldEvaluation === DataModelEvaluations.MALICIOUS &&
+        oldReliability === RELIABILITY_CONFIRMED_MALICIOUS
+      ) {
+        oldBasicEvaluation = "0";
+      }
+      if (
+        oldEvaluation === DataModelEvaluations.MALICIOUS &&
+        oldReliability === RELIABILITY_MALICIOUS
+      ) {
+        oldBasicEvaluation = "1";
+      }
+      if (
+        oldEvaluation === DataModelEvaluations.TRUSTED &&
+        oldReliability === RELIABILITY_CURRENTLY_TRUSTED
+      ) {
+        oldBasicEvaluation = "2";
+      }
+      if (
+        oldEvaluation === DataModelEvaluations.TRUSTED &&
+        oldReliability === RELIABILITY_TRUSTED
+      ) {
+        oldBasicEvaluation = "3";
+      }
+      if (oldBasicEvaluation === null) {
+        setAdvancedEvaluationTab(true);
+      }
+      formik.setValues({
+        // base data model fields
+        analyzables: formik.values?.analyzables,
+        basic_evaluation: oldBasicEvaluation,
+        evaluation: oldEvaluation,
+        reliability: oldReliability,
+        reason: oldData.reason || formik.initialValues.reason,
+        malware_family:
+          oldData.data_model.malware_family ||
+          formik.initialValues.malware_family,
+        related_threats:
+          oldData.data_model.related_threats.length > 0
+            ? oldData.data_model.related_threats
+            : formik.initialValues.related_threats,
+        external_references:
+          oldData.data_model.external_references.length > 0
+            ? oldData.data_model.external_references
+            : formik.initialValues.external_references,
+        kill_chain_phase: oldData.data_model.kill_chain_phase
+          ? {
+              value: oldData.data_model.kill_chain_phase,
+              label: killChainPhaseOptionLabel(
+                oldData.data_model.kill_chain_phase,
+              ),
+            }
+          : formik.initialValues.kill_chain_phase,
+        tags:
+          oldData.data_model.tags.length > 0
+            ? oldData.data_model.tags.map((tag) => ({
+                value: tag,
+                label: <Badge color={TagsColors[tag]}>{tag}</Badge>,
+              }))
+            : formik.initialValues.tags,
+        decay_progression: oldData.decay_progression,
+        decay_timedelta_days: oldData.decay_timedelta_days,
+      });
+    } else if (formik.values?.analyzables?.length > 1) {
+      formik.resetForm({
+        values: {
+          ...formik.initialValues,
+          analyzables: formik.values.analyzables,
+        },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputState]);
 
   return (
     <Modal
@@ -495,7 +615,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                                       </small>
                                     </Col>
                                     <Col
-                                      sm={5}
+                                      sm={4}
                                       className="d-flex align-items-center "
                                     >
                                       <small className="fst-italic">
@@ -531,6 +651,39 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                                           supported only for wildcard
                                         </small>
                                       )}
+                                    </Col>
+                                    <Col
+                                      sm={5}
+                                      className="d-flex align-items-top"
+                                    >
+                                      <small className="fst-italic">
+                                        Your evaluation:
+                                      </small>
+                                      <small className="ms-2">
+                                        {isLoadingExistingEventData && (
+                                          <Spinner size="sm" />
+                                        )}
+                                        {!isLoadingExistingEventData &&
+                                        inputState[value]?.existingEvent ? (
+                                          <div>
+                                            <DateHoverable
+                                              ago
+                                              value={
+                                                inputState[value]?.existingEvent
+                                                  .data_model.date
+                                              }
+                                              format="hh:mm:ss a MMM do, yyyy"
+                                              className="text-info"
+                                            />
+                                            <MdOutlineInput className="ms-2 text-secondary" />
+                                          </div>
+                                        ) : (
+                                          <small className="text-gray">
+                                            {" "}
+                                            Not found
+                                          </small>
+                                        )}
+                                      </small>
                                     </Col>
                                   </div>
                                 </div>
@@ -626,6 +779,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                                   true,
                                 );
                               }}
+                              disabled={isLoadingExistingEventData}
                             />
                             <Label
                               check
@@ -697,6 +851,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                                 }
                                 onBlur={formik.handleBlur}
                                 onChange={formik.handleChange}
+                                disabled={isLoadingExistingEventData}
                               />
                               <Label
                                 check
@@ -739,6 +894,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                                 false,
                               );
                             }}
+                            disabled={isLoadingExistingEventData}
                             className="color-range-slider ms-2"
                             style={{
                               "--slider-fill-color":
@@ -778,10 +934,11 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                     name="reason"
                     type="text"
                     className="input-dark"
-                    values={formik.values.reason}
+                    value={formik.values.reason}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     invalid={formik.errors.reason && formik.touched.reason}
+                    disabled={isLoadingExistingEventData}
                   />
                   {formik.errors.reason && formik.touched.reason && (
                     <span className="text-danger">{formik.errors.reason}</span>
@@ -803,9 +960,10 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                     name="malware_family"
                     type="text"
                     className="input-dark"
-                    values={formik.values.reason}
+                    value={formik.values.malware_family}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
+                    disabled={isLoadingExistingEventData}
                   />
                 </Col>
               </Row>
@@ -824,6 +982,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                     values={formik.values.related_threats}
                     formikSetFieldValue={formik.setFieldValue}
                     formikHandlerBlur={formik.handleBlur}
+                    disabled={isLoadingExistingEventData}
                   />
                 </Col>
               </Row>
@@ -845,6 +1004,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                     values={formik.values.external_references}
                     formikSetFieldValue={formik.setFieldValue}
                     formikHandlerBlur={formik.handleBlur}
+                    disabled={isLoadingExistingEventData}
                   />
                 </Col>
               </Row>
@@ -866,21 +1026,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                     options={Object.values(DataModelKillChainPhases).map(
                       (killChainPhase) => ({
                         value: killChainPhase,
-                        label: (
-                          <div
-                            id={`killChainPhase__${killChainPhase}`}
-                            className="d-flex justify-content-start align-items-start flex-column"
-                          >
-                            <div className="d-flex justify-content-start align-items-baseline flex-column">
-                              <div>{killChainPhase}&nbsp;</div>
-                              <div className="small text-left text-muted">
-                                {DataModelKillChainPhasesDescriptions[
-                                  killChainPhase.toUpperCase()
-                                ] || ""}
-                              </div>
-                            </div>
-                          </div>
-                        ),
+                        label: killChainPhaseOptionLabel(killChainPhase),
                       }),
                     )}
                     styles={selectStyles}
@@ -892,6 +1038,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                         false,
                       )
                     }
+                    isDisabled={isLoadingExistingEventData}
                   />
                 </Col>
               </Row>
@@ -953,6 +1100,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                         onBlur={formik.handleBlur}
                         onChange={formik.handleChange}
                         className="bg-darker border-dark"
+                        disabled={isLoadingExistingEventData}
                       >
                         <option value="">Select...</option>
                         {Object.entries(DecayProgressionTypes).map(
@@ -1000,6 +1148,7 @@ export function UserEventModal({ analyzables, toggle, isOpen }) {
                         onChange={formik.handleChange}
                         invalid={formik.errors?.decay_timedelta_days}
                         className="bg-darker border-0"
+                        disabled={isLoadingExistingEventData}
                       />
                       <FormFeedback>
                         {formik.errors?.decay_timedelta_days}
